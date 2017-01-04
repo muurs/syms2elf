@@ -26,18 +26,19 @@ from ctypes    import *
 from struct    import unpack
 
 USE_R2  = False
-USE_IDA = False
+USE_IDA = True
 
-if "IDA_SDK_VERSION" in globals():
-    USE_IDA = True
-elif "radare2" in os.environ.get('PATH',''):
-    USE_R2  = True
-else:
-    print("ERROR: The plugin must be run in IDA or radare2")
-    sys.exit(0)
+#if "IDA_SDK_VERSION" in globals():
+#    USE_IDA = True
+#elif "radare2" in os.environ.get('PATH',''):
+#    USE_R2  = True
+#else:
+#    print("ERROR: The plugin must be run in IDA or radare2")
+#    sys.exit(0)
 
 SHN_UNDEF = 0
 STB_GLOBAL_FUNC = 0x12
+STB_GLOBAL_OBJ = 0x11
 
 class SHTypes:
     SHT_NULL      = 0
@@ -672,6 +673,7 @@ def ida_fcn_filter(func_ea):
 def get_ida_symbols():
     symbols = []
 
+    # functions
     for f in filter(ida_fcn_filter, Functions()):
         func     = get_func(f)
         seg_name = SegName(f)
@@ -679,6 +681,18 @@ def get_ida_symbols():
         fn_name = GetFunctionName(f)
         symbols.append(Symbol(fn_name, STB_GLOBAL_FUNC, 
             int(func.startEA), int(func.size()), seg_name))
+
+    # variables
+    data_segment_names = ['.bss', '.data', '.rodata']
+    for segment_name in data_segment_names:
+        segment = SegByName(segment_name)
+        seg_startarea = SegByBase(segment)
+        seg_endarea = SegEnd(seg_startarea)
+
+        for sym in range(seg_startarea, seg_endarea):
+            sym_name = get_true_name(sym)
+            if sym_name != '':
+                symbols.append(Symbol(sym_name, STB_GLOBAL_OBJ, int(sym), ItemSize(sym), segment_name))
 
     return symbols
 
